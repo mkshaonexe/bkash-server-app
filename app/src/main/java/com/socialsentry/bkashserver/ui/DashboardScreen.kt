@@ -248,7 +248,24 @@ fun ManualEntryDialog(onDismiss: () -> Unit) {
     )
 }
 
-fun getNowFormatted(): String {
-    val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.US)
-    return sdf.format(java.util.Date())
+@Composable
+fun ConfigWarning() {
+    val isConfigured = com.socialsentry.bkashserver.BuildConfig.SUPABASE_URL.isNotEmpty()
+            && com.socialsentry.bkashserver.BuildConfig.SUPABASE_SERVICE_ROLE_KEY.isNotEmpty()
+
+    if (!isConfigured) {
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("⚠️ Configuration Missing", color = Color.Red, fontWeight = FontWeight.Bold)
+                Text(
+                    "Please add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to your local.properties file.",
+                    fontSize = 12.sp,
+                    color = Color.Black
+                )
+            }
+        }
+    }
 }
