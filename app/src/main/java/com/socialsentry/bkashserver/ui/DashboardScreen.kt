@@ -17,8 +17,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.socialsentry.bkashserver.data.local.PaymentEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.NumberFormat
 import java.util.*
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -142,15 +147,90 @@ fun StatusIndicator(status: String) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManualEntryDialog(onDismiss: () -> Unit) {
-    // Basic dialog placeholder for now
+    val context = LocalContext.current
+    var trxId by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    var senderNumber by remember { mutableStateOf("") }
+    var dateTime by remember { mutableStateOf(getNowFormatted()) }
+    var isUploading by remember { mutableStateOf(false) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Manual Entry") },
-        text = { Text("Manual entry feature coming in next step.") },
+        title = { Text("✏️ Manual Payment Entry") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = trxId,
+                    onValueChange = { trxId = it },
+                    label = { Text("TrxID") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Amount (৳)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = senderNumber,
+                    onValueChange = { senderNumber = it },
+                    label = { Text("Sender Number") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = dateTime,
+                    onValueChange = { dateTime = it },
+                    label = { Text("Date & Time (DD/MM/YYYY HH:MM)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("OK") }
+            Button(
+                onClick = {
+                    if (trxId.isNotEmpty() && amount.isNotEmpty() && senderNumber.isNotEmpty()) {
+                        isUploading = true
+                        val database = com.socialsentry.bkashserver.data.local.PaymentDatabase.getDatabase(context)
+                        val entity = com.socialsentry.bkashserver.data.local.PaymentEntity(
+                            trxId = trxId,
+                            amount = amount.toDoubleOrNull() ?: 0.0,
+                            senderNumber = senderNumber,
+                            dateTime = dateTime,
+                            fee = 0.0,
+                            balanceAfter = 0.0,
+                            rawText = "MANUAL_ENTRY",
+                            uploadStatus = "PENDING"
+                        )
+                        
+                        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            database.paymentDao().insertPayment(entity)
+                            com.socialsentry.bkashserver.data.PaymentUploader.uploadPendingPayments(context)
+                            withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                isUploading = false
+                                onDismiss()
+                            }
+                        }
+                    }
+                },
+                enabled = !isUploading
+            ) {
+                if (isUploading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                } else {
+                    Text("Upload to Server")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
+}
+
+fun getNowFormatted(): String {
+    val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.US)
+    return sdf.format(java.util.Date())
 }
