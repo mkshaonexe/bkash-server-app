@@ -115,7 +115,7 @@ fun SummaryCard(payments: List<PaymentEntity>) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Today's Payments: ${payments.size}", fontSize = 18.sp)
             Text(
-                "Total Received: ৳${String.format("%.2(f)", totalAmount)}",
+                "Total Received: ৳${String.format("%.2f", totalAmount)}",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
