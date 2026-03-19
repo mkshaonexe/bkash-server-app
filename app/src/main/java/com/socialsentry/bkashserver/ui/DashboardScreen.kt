@@ -48,9 +48,27 @@ fun DashboardScreen(payments: List<PaymentEntity>) {
         ) {
             StatusCard()
             Spacer(modifier = Modifier.height(16.dp))
+            ConfigWarning()
             SummaryCard(payments)
             Spacer(modifier = Modifier.height(16.dp))
-            Text("Recent Payments", fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Recent Payments", fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                if (payments.any { it.uploadStatus == "FAILED" || it.uploadStatus == "PENDING" }) {
+                    TextButton(onClick = {
+                        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            com.socialsentry.bkashserver.data.PaymentUploader.uploadPendingPayments(context)
+                        }
+                    }) {
+                        Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Retry All")
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
             PaymentList(payments)
         }
