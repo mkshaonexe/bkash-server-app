@@ -26,7 +26,25 @@ class SmsReceiver : BroadcastReceiver() {
                     val payment = BkashSmsParser.parse(body)
                     if (payment != null) {
                         Log.d(TAG, "Parsed bKash payment: $payment")
-                        // TODO: Save to Room DB and upload to Supabase
+                        
+                        context?.let { ctx ->
+                            val database = com.socialsentry.bkashserver.data.local.PaymentDatabase.getDatabase(ctx)
+                            val paymentEntity = com.socialsentry.bkashserver.data.local.PaymentEntity(
+                                trxId = payment.trxId,
+                                amount = payment.amount,
+                                senderNumber = payment.senderNumber,
+                                dateTime = payment.dateTime,
+                                fee = payment.fee,
+                                balanceAfter = payment.balanceAfter,
+                                rawText = payment.rawText
+                            )
+                            
+                            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                database.paymentDao().insertPayment(paymentEntity)
+                                Log.d(TAG, "Saved payment to database: ${payment.trxId}")
+                                com.socialsentry.bkashserver.data.PaymentUploader.uploadPendingPayments(ctx)
+                            }
+                        }
                     } else {
                         Log.d(TAG, "Failed to parse bKash SMS")
                     }
