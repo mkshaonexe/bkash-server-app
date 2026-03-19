@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.socialsentry.bkashserver.data.local.PaymentDatabase
 import com.socialsentry.bkashserver.data.local.PaymentEntity
-import io.github.jan_tennert.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.from
 import kotlinx.serialization.Serializable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

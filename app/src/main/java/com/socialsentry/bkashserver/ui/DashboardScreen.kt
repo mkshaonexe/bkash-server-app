@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(payments: List<PaymentEntity>) {
+    val context = LocalContext.current
     var showManualEntry by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -172,7 +173,7 @@ fun ManualEntryDialog(onDismiss: () -> Unit) {
     var trxId by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var senderNumber by remember { mutableStateOf("") }
-    var dateTime by remember { mutableStateOf(getNowFormatted()) }
+    var dateTime by remember { mutableStateOf<String>(getNowFormatted()) }
     var isUploading by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -268,4 +269,9 @@ fun ConfigWarning() {
             }
         }
     }
+}
+
+private fun getNowFormatted(): String {
+    val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
+    return sdf.format(java.util.Date())
 }

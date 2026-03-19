@@ -1,8 +1,8 @@
 package com.socialsentry.bkashserver.data
 
-import io.github.jan_tennert.supabase.SupabaseClient
-import io.github.jan_tennert.supabase.createSupabaseClient
-import io.github.jan_tennert.supabase.postgrest.Postgrest
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.createSupabaseClient
+import io.github.jan.supabase.postgrest.Postgrest
 import com.socialsentry.bkashserver.BuildConfig
 
 object SupabaseClientManager {
