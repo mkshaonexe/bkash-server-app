@@ -20,14 +20,25 @@ android {
         versionCode = 1
         versionName = "1.0"
 
+        val envProperties = Properties()
+        val envFile = project.rootProject.file(".env")
         val localProperties = Properties()
-        val localPropertiesFile = rootProject.file("local.properties")
+        val localPropertiesFile = project.rootProject.file("local.properties")
+        
+        if (envFile.exists()) {
+            envProperties.load(FileInputStream(envFile))
+        }
         if (localPropertiesFile.exists()) {
-            localProperties.load(localPropertiesFile.inputStream())
+            localProperties.load(FileInputStream(localPropertiesFile))
         }
 
-        buildConfigField("String", "SUPABASE_URL", "\"${localProperties.getProperty("SUPABASE_URL") ?: ""}\"")
-        buildConfigField("String", "SUPABASE_SERVICE_ROLE_KEY", "\"${localProperties.getProperty("SUPABASE_SERVICE_ROLE_KEY") ?: ""}\"")
+        fun getProp(key: String): String {
+            return envProperties.getProperty(key) ?: localProperties.getProperty(key) ?: ""
+        }
+
+        buildConfigField("String", "SUPABASE_URL", "\"${getProp("SUPABASE_URL")}\"")
+        buildConfigField("String", "SUPABASE_SERVICE_ROLE_KEY", "\"${getProp("SUPABASE_SERVICE_ROLE_KEY")}\"")
+        buildConfigField("String", "DB_PASSWORD", "\"${getProp("DB_PASSWORD")}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
