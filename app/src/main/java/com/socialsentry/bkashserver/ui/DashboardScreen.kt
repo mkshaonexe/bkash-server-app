@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.socialsentry.bkashserver.data.local.PaymentEntity
+import com.socialsentry.bkashserver.domain.ServiceLog
+import com.socialsentry.bkashserver.domain.ServiceTracker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -30,10 +33,19 @@ import androidx.compose.ui.platform.LocalContext
 fun DashboardScreen(payments: List<PaymentEntity>) {
     val context = LocalContext.current
     var showManualEntry by remember { mutableStateOf(false) }
+    var showLogsDialog by remember { mutableStateOf(false) }
+    var selectedFilter by remember { mutableStateOf("Today") }
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("📱 bKash SMS Reader") })
+            TopAppBar(
+                title = { Text("📱 bKash SMS Reader") },
+                actions = {
+                    IconButton(onClick = { showLogsDialog = true }) {
+                        Icon(Icons.Default.ReceiptLong, contentDescription = "View Logs")
+                    }
+                }
+            )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showManualEntry = true }) {
@@ -47,10 +59,51 @@ fun DashboardScreen(payments: List<PaymentEntity>) {
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            StatusCard()
-            Spacer(modifier = Modifier.height(16.dp))
+            val calendar = Calendar.getInstance()
+            val filteredPayments = payments.filter { payment ->
+                when (selectedFilter) {
+                    "Today" -> {
+                        calendar.timeInMillis = System.currentTimeMillis()
+                        calendar.set(Calendar.HOUR_OF_DAY, 0)
+                        calendar.set(Calendar.MINUTE, 0)
+                        calendar.set(Calendar.SECOND, 0)
+                        payment.createdAt >= calendar.timeInMillis
+                    }
+                    "Week" -> {
+                        calendar.timeInMillis = System.currentTimeMillis()
+                        calendar.set(Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek)
+                        calendar.set(Calendar.HOUR_OF_DAY, 0)
+                        calendar.set(Calendar.MINUTE, 0)
+                        payment.createdAt >= calendar.timeInMillis
+                    }
+                    "Month" -> {
+                        calendar.timeInMillis = System.currentTimeMillis()
+                        calendar.set(Calendar.DAY_OF_MONTH, 1)
+                        calendar.set(Calendar.HOUR_OF_DAY, 0)
+                        calendar.set(Calendar.MINUTE, 0)
+                        payment.createdAt >= calendar.timeInMillis
+                    }
+                    else -> true
+                }
+            }
+
+            // Filter row
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf("Today", "Week", "Month", "All").forEach { filterOpt ->
+                    FilterChip(
+                        selected = selectedFilter == filterOpt,
+                        onClick = { selectedFilter = filterOpt },
+                        label = { Text(filterOpt) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
             ConfigWarning()
-            SummaryCard(payments)
+            SummaryCard(filteredPayments, selectedFilter)
             Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -71,53 +124,27 @@ fun DashboardScreen(payments: List<PaymentEntity>) {
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            PaymentList(payments)
+            PaymentList(filteredPayments)
         }
     }
     
     if (showManualEntry) {
         ManualEntryDialog(onDismiss = { showManualEntry = false })
     }
-}
 
-@Composable
-fun StatusCard() {
-    val context = LocalContext.current
-    var uptimeStatus by remember { mutableStateOf(com.socialsentry.bkashserver.domain.ServiceTracker.getUptimeStatus(context)) }
-
-    LaunchedEffect(Unit) {
-        while(true) {
-            uptimeStatus = com.socialsentry.bkashserver.domain.ServiceTracker.getUptimeStatus(context)
-            kotlinx.coroutines.delay(5000)
-        }
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = uptimeStatus,
-                color = if (uptimeStatus.contains("🟢")) Color(0xFF4CAF50) else Color.Red,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
-        }
+    if (showLogsDialog) {
+        ServiceLogsDialog(onDismiss = { showLogsDialog = false })
     }
 }
 
 @Composable
-fun SummaryCard(payments: List<PaymentEntity>) {
+fun SummaryCard(payments: List<PaymentEntity>, filterPeriod: String) {
     val totalAmount = payments.sumOf { it.amount }
     val currencyFormat = NumberFormat.getCurrencyInstance(Locale("bn", "BD"))
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Today's Payments: ${payments.size}", fontSize = 18.sp)
+            Text("$filterPeriod's Payments: ${payments.size}", fontSize = 18.sp)
             Text(
                 "Total Received: ৳${String.format("%.2f", totalAmount)}",
                 fontSize = 20.sp,
@@ -278,4 +305,62 @@ fun ConfigWarning() {
 private fun getNowFormatted(): String {
     val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
     return sdf.format(java.util.Date())
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ServiceLogsDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val logs = remember { com.socialsentry.bkashserver.domain.ServiceTracker.getLogHistory(context) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("🕒 Service Uptime History") },
+        text = {
+            if (logs.isEmpty()) {
+                Text("No logs available.", color = Color.Gray)
+            } else {
+                androidx.compose.foundation.lazy.LazyColumn {
+                    items(logs.size) { index ->
+                        val log = logs[index]
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "🟢 Started: ${log.startTime}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                if (log.stopTime != null) {
+                                    Text(
+                                        text = "🔴 Stopped: ${log.stopTime}",
+                                        color = Color.Red,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "Reason: ${log.reason}",
+                                        color = Color.DarkGray,
+                                        fontSize = 12.sp,
+                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                    )
+                                } else {
+                                    Text(
+                                        text = "⚡ Currently Running",
+                                        color = Color(0xFF4CAF50),
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Close") }
+        }
+    )
 }
