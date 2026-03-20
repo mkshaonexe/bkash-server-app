@@ -16,4 +16,7 @@ interface PaymentDao {
 
     @Query("SELECT * FROM payments WHERE uploadStatus = 'PENDING' OR uploadStatus = 'FAILED'")
     suspend fun getPendingPayments(): List<PaymentEntity>
+
+    @Query("SELECT * FROM payments WHERE trxId = :trxId LIMIT 1")
+    suspend fun getPaymentByTrxId(trxId: String): PaymentEntity?
 }

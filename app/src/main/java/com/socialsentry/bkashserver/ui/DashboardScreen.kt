@@ -82,6 +82,16 @@ fun DashboardScreen(payments: List<PaymentEntity>) {
 
 @Composable
 fun StatusCard() {
+    val context = LocalContext.current
+    var uptimeStatus by remember { mutableStateOf(com.socialsentry.bkashserver.domain.ServiceTracker.getUptimeStatus(context)) }
+
+    LaunchedEffect(Unit) {
+        while(true) {
+            uptimeStatus = com.socialsentry.bkashserver.domain.ServiceTracker.getUptimeStatus(context)
+            kotlinx.coroutines.delay(5000)
+        }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -90,17 +100,11 @@ fun StatusCard() {
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .padding(2.dp)
-            ) {
-                // Circle indicator
-            }
             Text(
-                text = "● Running (24/7)",
-                color = Color(0xFF4CAF50),
-                fontWeight = FontWeight.Bold
+                text = uptimeStatus,
+                color = if (uptimeStatus.contains("🟢")) Color(0xFF4CAF50) else Color.Red,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
             )
         }
     }

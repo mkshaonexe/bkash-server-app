@@ -18,6 +18,12 @@ import com.socialsentry.bkashserver.ui.theme.BkashServerTheme
 import com.socialsentry.bkashserver.data.local.PaymentDatabase
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import android.os.PowerManager
+import com.socialsentry.bkashserver.domain.SmsRecoveryManager
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,8 +57,22 @@ class MainActivity : ComponentActivity() {
                     }
                     if (allGranted) {
                         SmsForegroundService.startService(context)
+                        
+                        // Recover any missed payments while the app was closed
+                        launch {
+                            SmsRecoveryManager.recoverMissedPayments(context)
+                        }
                     } else {
                         launcher.launch(permissionsToRequest.toTypedArray())
+                    }
+
+                    // Request Battery Optimization Ignore to ensure 24/7 uptime
+                    val pm = context.getSystemService(POWER_SERVICE) as PowerManager
+                    if (!pm.isIgnoringBatteryOptimizations(context.packageName)) {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = Uri.parse("package:${context.packageName}")
+                        }
+                        context.startActivity(intent)
                     }
                 }
 

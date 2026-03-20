@@ -8,6 +8,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.socialsentry.bkashserver.MainActivity
 import com.socialsentry.bkashserver.R
+import com.socialsentry.bkashserver.domain.ServiceTracker
 
 class SmsForegroundService : Service() {
 
@@ -39,7 +40,18 @@ class SmsForegroundService : Service() {
         val notification = createNotification("bKash SMS Reader is running (24/7)")
         startForeground(NOTIFICATION_ID, notification)
         
+        ServiceTracker.onServiceStart(this)
         return START_STICKY
+    }
+
+    override fun onDestroy() {
+        ServiceTracker.onServiceStop(this, "Destroyed by System")
+        super.onDestroy()
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        ServiceTracker.onServiceStop(this, "Closed by User")
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
