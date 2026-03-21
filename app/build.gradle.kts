@@ -37,8 +37,8 @@ android {
         }
 
         buildConfigField("String", "SUPABASE_URL", "\"${getProp("SUPABASE_URL")}\"")
-        buildConfigField("String", "SUPABASE_SERVICE_ROLE_KEY", "\"${getProp("SUPABASE_SERVICE_ROLE_KEY")}\"")
-        buildConfigField("String", "DB_PASSWORD", "\"${getProp("DB_PASSWORD")}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${getProp("SUPABASE_ANON_KEY")}\"")
+        buildConfigField("String", "BKASH_APP_SECRET", "\"${getProp("BKASH_APP_SECRET")}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -79,6 +79,7 @@ dependencies {
     // Supabase
     implementation(platform(libs.supabase.bom))
     implementation(libs.supabase.postgrest)
+    implementation(libs.supabase.functions)
     implementation(libs.ktor.client.android)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.kotlinx.serialization.json)

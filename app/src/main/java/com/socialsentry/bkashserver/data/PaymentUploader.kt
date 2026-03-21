@@ -5,6 +5,7 @@ import android.util.Log
 import com.socialsentry.bkashserver.data.local.PaymentDatabase
 import com.socialsentry.bkashserver.data.local.PaymentEntity
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.functions.invoke
 import kotlinx.serialization.Serializable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -52,7 +53,13 @@ object PaymentUploader {
                 raw_sms_text = payment.rawText
             )
 
-            SupabaseClientManager.client.from("bkash_payments").insert(supabasePayment)
+            SupabaseClientManager.client.functions.invoke(
+                "upload-bkash-payment",
+                body = supabasePayment,
+                headers = io.ktor.http.Headers.build {
+                    append("x-app-secret", com.socialsentry.bkashserver.BuildConfig.BKASH_APP_SECRET)
+                }
+            )
         }
     }
 
