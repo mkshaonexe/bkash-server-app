@@ -19,7 +19,11 @@ abstract class PaymentDatabase : RoomDatabase() {
                     context.applicationContext,
                     PaymentDatabase::class.java,
                     "payment_database"
-                ).build()
+                )
+                    // WAL mode allows simultaneous reads while a write is happening,
+                    // preventing the UI from freezing when SmsReceiver writes a payment.
+                    .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
+                    .build()
                 INSTANCE = instance
                 instance
             }

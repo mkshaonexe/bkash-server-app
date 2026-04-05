@@ -4,11 +4,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,10 +18,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.socialsentry.bkashserver.data.local.PaymentEntity
-import com.socialsentry.bkashserver.domain.ServiceLog
 import com.socialsentry.bkashserver.domain.ServiceTracker
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.NumberFormat
@@ -32,6 +31,11 @@ import androidx.compose.ui.platform.LocalContext
 @Composable
 fun DashboardScreen(payments: List<PaymentEntity>) {
     val context = LocalContext.current
+    // rememberCoroutineScope() is tied to this composable's lifecycle.
+    // When the screen goes away, all coroutines launched from this scope are
+    // automatically cancelled. This was previously GlobalScope which is never cancelled.
+    val scope = rememberCoroutineScope()
+
     var showManualEntry by remember { mutableStateOf(false) }
     var showLogsDialog by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("Today") }
@@ -42,7 +46,7 @@ fun DashboardScreen(payments: List<PaymentEntity>) {
                 title = { Text("📱 bKash SMS Reader") },
                 actions = {
                     IconButton(onClick = { showLogsDialog = true }) {
-                        Icon(Icons.Default.ReceiptLong, contentDescription = "View Logs")
+                        Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = "View Logs")
                     }
                 }
             )
@@ -59,32 +63,31 @@ fun DashboardScreen(payments: List<PaymentEntity>) {
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            val calendar = Calendar.getInstance()
-            val filteredPayments = payments.filter { payment ->
-                when (selectedFilter) {
-                    "Today" -> {
-                        calendar.timeInMillis = System.currentTimeMillis()
-                        calendar.set(Calendar.HOUR_OF_DAY, 0)
-                        calendar.set(Calendar.MINUTE, 0)
-                        calendar.set(Calendar.SECOND, 0)
-                        payment.createdAt >= calendar.timeInMillis
+            val filteredPayments = remember(payments, selectedFilter) {
+                val cal = Calendar.getInstance()
+                payments.filter { payment ->
+                    when (selectedFilter) {
+                        "Today" -> {
+                            cal.timeInMillis = System.currentTimeMillis()
+                            cal.set(Calendar.HOUR_OF_DAY, 0)
+                            cal.set(Calendar.MINUTE, 0)
+                            cal.set(Calendar.SECOND, 0)
+                            cal.set(Calendar.MILLISECOND, 0)
+                            payment.createdAt >= cal.timeInMillis
+                        }
+                        "Week" -> {
+                            // Last 7 days
+                            val sevenDaysAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000L)
+                            payment.createdAt >= sevenDaysAgo
+                        }
+                        "Month" -> {
+                            // Last 30 days
+                            val thirtyDaysAgo = System.currentTimeMillis() - (30 * 24 * 60 * 60 * 1000L)
+                            payment.createdAt >= thirtyDaysAgo
+                        }
+                        else -> true
                     }
-                    "Week" -> {
-                        calendar.timeInMillis = System.currentTimeMillis()
-                        calendar.set(Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek)
-                        calendar.set(Calendar.HOUR_OF_DAY, 0)
-                        calendar.set(Calendar.MINUTE, 0)
-                        payment.createdAt >= calendar.timeInMillis
-                    }
-                    "Month" -> {
-                        calendar.timeInMillis = System.currentTimeMillis()
-                        calendar.set(Calendar.DAY_OF_MONTH, 1)
-                        calendar.set(Calendar.HOUR_OF_DAY, 0)
-                        calendar.set(Calendar.MINUTE, 0)
-                        payment.createdAt >= calendar.timeInMillis
-                    }
-                    else -> true
-                }
+                }.sortedByDescending { it.createdAt }
             }
 
             // Filter row
@@ -112,8 +115,10 @@ fun DashboardScreen(payments: List<PaymentEntity>) {
             ) {
                 Text("Recent Payments", fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
                 if (payments.any { it.uploadStatus == "FAILED" || it.uploadStatus == "PENDING" }) {
+                    val capturedScope = scope
                     TextButton(onClick = {
-                        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        // Uses composable-scoped coroutine — cancelled when user leaves screen
+                        capturedScope.launch(Dispatchers.IO) {
                             com.socialsentry.bkashserver.data.PaymentUploader.uploadPendingPayments(context)
                         }
                     }) {
@@ -127,7 +132,7 @@ fun DashboardScreen(payments: List<PaymentEntity>) {
             PaymentList(filteredPayments)
         }
     }
-    
+
     if (showManualEntry) {
         ManualEntryDialog(onDismiss = { showManualEntry = false })
     }
@@ -140,7 +145,6 @@ fun DashboardScreen(payments: List<PaymentEntity>) {
 @Composable
 fun SummaryCard(payments: List<PaymentEntity>, filterPeriod: String) {
     val totalAmount = payments.sumOf { it.amount }
-    val currencyFormat = NumberFormat.getCurrencyInstance(Locale("bn", "BD"))
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -178,7 +182,7 @@ fun PaymentItem(payment: PaymentEntity) {
             Text("TrxID: ${payment.trxId}", fontSize = 12.sp, color = Color.Gray)
             Text("${payment.dateTime}", fontSize = 12.sp, color = Color.Gray)
         }
-        
+
         StatusIndicator(payment.uploadStatus)
     }
 }
@@ -201,6 +205,7 @@ fun StatusIndicator(status: String) {
 @Composable
 fun ManualEntryDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var trxId by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var senderNumber by remember { mutableStateOf("") }
@@ -254,14 +259,14 @@ fun ManualEntryDialog(onDismiss: () -> Unit) {
                             rawText = "MANUAL_ENTRY",
                             uploadStatus = "PENDING"
                         )
-                        
-                        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+
+                        // Uses composable-scoped coroutine
+                        scope.launch(Dispatchers.IO) {
                             database.paymentDao().insertPayment(entity)
-                            com.socialsentry.bkashserver.data.PaymentUploader.uploadPendingPayments(context)
-                            withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                isUploading = false
-                                onDismiss()
-                            }
+                            com.socialsentry.bkashserver.data.PaymentUploader.uploadSinglePayment(context, entity)
+                        }.invokeOnCompletion {
+                            isUploading = false
+                            onDismiss()
                         }
                     }
                 },
@@ -283,7 +288,7 @@ fun ManualEntryDialog(onDismiss: () -> Unit) {
 @Composable
 fun ConfigWarning() {
     val isConfigured = com.socialsentry.bkashserver.BuildConfig.SUPABASE_URL.isNotEmpty()
-            && com.socialsentry.bkashserver.BuildConfig.SUPABASE_SERVICE_ROLE_KEY.isNotEmpty()
+            && com.socialsentry.bkashserver.BuildConfig.SUPABASE_ANON_KEY.isNotEmpty()
 
     if (!isConfigured) {
         Card(
@@ -293,7 +298,7 @@ fun ConfigWarning() {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("⚠️ Configuration Missing", color = Color.Red, fontWeight = FontWeight.Bold)
                 Text(
-                    "Please add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to your local.properties file.",
+                    "Please add SUPABASE_URL and SUPABASE_ANON_KEY to your local.properties file.",
                     fontSize = 12.sp,
                     color = Color.Black
                 )
@@ -311,7 +316,7 @@ private fun getNowFormatted(): String {
 @Composable
 fun ServiceLogsDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val logs = remember { com.socialsentry.bkashserver.domain.ServiceTracker.getLogHistory(context) }
+    val logs = remember { ServiceTracker.getLogHistory(context) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

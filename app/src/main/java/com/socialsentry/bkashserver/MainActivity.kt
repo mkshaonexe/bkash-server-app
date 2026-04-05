@@ -22,8 +22,13 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.os.PowerManager
+import android.util.Log
 import com.socialsentry.bkashserver.domain.SmsRecoveryManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,9 +62,16 @@ class MainActivity : ComponentActivity() {
                     }
                     if (allGranted) {
                         SmsForegroundService.startService(context)
-                        
-                        // Recover any missed payments while the app was closed
+
                         launch {
+                            // Fix existing records that were recovered with wrong createdAt (= now)
+                            // This runs once at startup and costs very little.
+                            fixCorruptedCreatedAtTimestamps(database)
+
+                            // Retry any "Failed" or "Pending" payments from previous attempts
+                            com.socialsentry.bkashserver.data.PaymentUploader.uploadPendingPayments(context)
+
+                            // Recover any missed payments while the app was closed
                             SmsRecoveryManager.recoverMissedPayments(context)
                         }
                     } else {
@@ -79,5 +91,46 @@ class MainActivity : ComponentActivity() {
                 DashboardScreen(payments = payments)
             }
         }
+    }
+}
+
+/**
+ * One-time repair: For any payment in the local DB whose createdAt is far in the future
+ * compared to what the dateTime string says, we re-parse the dateTime and update createdAt.
+ *
+ * This fixes entries created by the old SmsRecoveryManager before this fix was applied,
+ * which used System.currentTimeMillis() as createdAt for ALL recovered SMS regardless of
+ * their actual date — causing old March SMS to appear in the "Today" tab.
+ */
+private suspend fun fixCorruptedCreatedAtTimestamps(
+    database: com.socialsentry.bkashserver.data.local.PaymentDatabase
+) = withContext(Dispatchers.IO) {
+    try {
+        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+        val dao = database.paymentDao()
+        val allPayments = dao.getAllPaymentsOnce()
+        var fixedCount = 0
+
+        for (payment in allPayments) {
+            try {
+                val parsedDate = sdf.parse(payment.dateTime) ?: continue
+                val parsedMs = parsedDate.time
+                // If createdAt differs from the parsed dateTime by more than 1 hour,
+                // the record was saved with the wrong timestamp — fix it.
+                val diffMs = Math.abs(payment.createdAt - parsedMs)
+                if (diffMs > 60 * 60 * 1000L) {
+                    dao.updateCreatedAt(payment.trxId, parsedMs)
+                    fixedCount++
+                }
+            } catch (_: Exception) {
+                // Unparseable dateTime — leave it alone
+            }
+        }
+
+        if (fixedCount > 0) {
+            Log.d("MainActivity", "Fixed createdAt timestamps for $fixedCount payments")
+        }
+    } catch (e: Exception) {
+        Log.e("MainActivity", "Failed to fix createdAt timestamps", e)
     }
 }

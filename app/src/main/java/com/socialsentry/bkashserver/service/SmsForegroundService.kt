@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import com.socialsentry.bkashserver.MainActivity
 import com.socialsentry.bkashserver.R
@@ -15,7 +16,7 @@ class SmsForegroundService : Service() {
     companion object {
         const val CHANNEL_ID = "SmsReaderServiceChannel"
         const val NOTIFICATION_ID = 1
-        
+
         fun startService(context: Context) {
             val startIntent = Intent(context, SmsForegroundService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -39,8 +40,10 @@ class SmsForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification = createNotification("bKash SMS Reader is running (24/7)")
         startForeground(NOTIFICATION_ID, notification)
-        
         ServiceTracker.onServiceStart(this)
+        // START_STICKY: Android will restart this service automatically if killed,
+        // re-delivering a null intent. Combined with stopWithTask=false in manifest,
+        // this service survives app close/swipe-away.
         return START_STICKY
     }
 
@@ -50,7 +53,42 @@ class SmsForegroundService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
+        // User swiped the app away. Schedule an exact restart via AlarmManager
+        // so the service comes back even if START_STICKY alone isn't honored by the ROM.
         ServiceTracker.onServiceStop(this, "Closed by User")
+
+        val restartIntent = Intent(applicationContext, SmsForegroundService::class.java)
+        val pendingIntent = PendingIntent.getService(
+            applicationContext,
+            1,
+            restartIntent,
+            PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    SystemClock.elapsedRealtime() + 10_000L,
+                    pendingIntent
+                )
+            } else {
+                // Fallback: inexact alarm — still restarts, just may be slightly delayed
+                alarmManager.set(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    SystemClock.elapsedRealtime() + 10_000L,
+                    pendingIntent
+                )
+            }
+        } else {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                SystemClock.elapsedRealtime() + 10_000L,
+                pendingIntent
+            )
+        }
+
         super.onTaskRemoved(rootIntent)
     }
 
