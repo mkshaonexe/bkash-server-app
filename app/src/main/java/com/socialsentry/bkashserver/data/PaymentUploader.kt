@@ -25,7 +25,8 @@ data class BkashPaymentSupabase(
     val balance_after: Double,
     val received_at: String,
     val raw_sms_text: String,
-    val status: String = "received"
+    val status: String = "received",
+    val payment_source: String = "bkash_merchant"
 )
 
 object PaymentUploader {
@@ -96,7 +97,8 @@ object PaymentUploader {
                     fee = payment.fee,
                     balance_after = payment.balanceAfter,
                     received_at = formatToSupabaseDate(payment.dateTime),
-                    raw_sms_text = payment.rawText
+                    raw_sms_text = payment.rawText,
+                    payment_source = payment.paymentSource
                 )
 
                 val json = Json.encodeToString(supabasePayment)

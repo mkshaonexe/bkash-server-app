@@ -7,27 +7,24 @@ import com.socialsentry.bkashserver.data.PaymentUploader
 import com.socialsentry.bkashserver.data.local.PaymentDatabase
 import com.socialsentry.bkashserver.data.local.PaymentEntity
 import com.socialsentry.bkashserver.domain.parser.BkashSmsParser
+import com.socialsentry.bkashserver.domain.parser.NagadSmsParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 object SmsRecoveryManager {
     private const val TAG = "SmsRecoveryManager"
     private val BKASH_SENDERS = listOf("bKash", "16247", "BKASH")
+    private val NAGAD_SENDERS = listOf("Nagad", "16167", "NAGAD")
 
     /**
-     * Scans the last 30 days of SMS inbox for any bKash payment messages that were
-     * missed while the app was off. Only processes messages we haven't seen before.
-     * Previously this queried with no date filter and no time boundary, which was
-     * wasteful; now it only looks at messages since 30 days ago.
+     * Scans the last 30 days of SMS inbox for any bKash OR Nagad payment messages
+     * that were missed while the app was off. Only processes messages not yet seen.
      */
     suspend fun recoverMissedPayments(context: Context) = withContext(Dispatchers.IO) {
-        Log.d(TAG, "Starting Missed SMS Recovery...")
+        Log.d(TAG, "Starting Multi-Provider Missed SMS Recovery...")
         try {
             val resolver = context.contentResolver
             val uri = Telephony.Sms.Inbox.CONTENT_URI
-
-            // Only look at SMS from the last 30 days. This prevents scanning the
-            // entire inbox history on every app launch.
             val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
 
             val cursor = resolver.query(
@@ -54,41 +51,59 @@ object SmsRecoveryManager {
                 while (it.moveToNext()) {
                     val address = it.getString(addressIndex) ?: continue
                     val body = it.getString(bodyIndex) ?: continue
-                    // Read the actual SMS timestamp from the system inbox.
-                    // This is crucial: without it, recovered SMS get createdAt = now()
-                    // which makes old messages from March appear in Today's tab.
                     val smsDate = it.getLong(dateIndex)
 
-                    if (BKASH_SENDERS.any { sender -> address.contains(sender, ignoreCase = true) }) {
-                        val parsedPayment = BkashSmsParser.parse(body)
-                        if (parsedPayment != null) {
-                            // Only add if we haven't already stored this TrxID
-                            val exists = database.paymentDao().getPaymentByTrxId(parsedPayment.trxId) != null
-                            if (!exists) {
-                                Log.d(TAG, "Recovered missed payment: ${parsedPayment.trxId} (SMS date: $smsDate)")
-                                val entity = PaymentEntity(
-                                    trxId = parsedPayment.trxId,
-                                    amount = parsedPayment.amount,
-                                    senderNumber = parsedPayment.senderNumber,
-                                    dateTime = parsedPayment.dateTime,
-                                    fee = parsedPayment.fee,
-                                    balanceAfter = parsedPayment.balanceAfter,
-                                    rawText = parsedPayment.rawText,
-                                    uploadStatus = "PENDING",
-                                    // Use the actual SMS date so filters (Today/Week/Month)
-                                    // correctly categorize recovered historical messages.
-                                    createdAt = smsDate
-                                )
-                                database.paymentDao().insertPayment(entity)
-                                newPaymentsFound++
-                            }
+                    val entity: PaymentEntity? = when {
+                        // bKash SMS
+                        BKASH_SENDERS.any { s -> address.contains(s, ignoreCase = true) } -> {
+                            val p = BkashSmsParser.parse(body)
+                            if (p != null) PaymentEntity(
+                                trxId = p.trxId,
+                                amount = p.amount,
+                                senderNumber = p.senderNumber,
+                                dateTime = p.dateTime,
+                                fee = p.fee,
+                                balanceAfter = p.balanceAfter,
+                                rawText = p.rawText,
+                                uploadStatus = "PENDING",
+                                createdAt = smsDate,
+                                paymentSource = p.paymentSource
+                            ) else null
+                        }
+
+                        // Nagad SMS
+                        NAGAD_SENDERS.any { s -> address.contains(s, ignoreCase = true) } -> {
+                            val p = NagadSmsParser.parse(body)
+                            if (p != null) PaymentEntity(
+                                trxId = p.trxId,
+                                amount = p.amount,
+                                senderNumber = p.senderNumber,
+                                dateTime = p.dateTime,
+                                fee = 0.0,
+                                balanceAfter = p.balanceAfter,
+                                rawText = p.rawText,
+                                uploadStatus = "PENDING",
+                                createdAt = smsDate,
+                                paymentSource = "nagad_personal"
+                            ) else null
+                        }
+
+                        else -> null
+                    }
+
+                    if (entity != null) {
+                        val exists = database.paymentDao().getPaymentByTrxId(entity.trxId) != null
+                        if (!exists) {
+                            Log.d(TAG, "Recovered: ${entity.trxId} [${entity.paymentSource}]")
+                            database.paymentDao().insertPayment(entity)
+                            newPaymentsFound++
                         }
                     }
                 }
             }
 
             if (newPaymentsFound > 0) {
-                Log.d(TAG, "Found $newPaymentsFound missed payments, uploading...")
+                Log.d(TAG, "Recovered $newPaymentsFound missed payments, uploading...")
                 PaymentUploader.uploadPendingPayments(context)
             } else {
                 Log.d(TAG, "No new missed payments found.")

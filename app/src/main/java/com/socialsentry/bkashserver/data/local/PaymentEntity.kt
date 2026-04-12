@@ -1,5 +1,6 @@
 package com.socialsentry.bkashserver.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -14,5 +15,8 @@ data class PaymentEntity(
     val balanceAfter: Double,
     val rawText: String,
     val uploadStatus: String = "PENDING", // PENDING, UPLOADED, FAILED
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    // bkash_merchant | bkash_personal | nagad_personal
+    @ColumnInfo(defaultValue = "bkash_merchant")
+    val paymentSource: String = "bkash_merchant"
 )
