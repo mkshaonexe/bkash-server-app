@@ -12,7 +12,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
-import com.socialsentry.bkashserver.service.SmsForegroundService
 import com.socialsentry.bkashserver.ui.DashboardScreen
 import com.socialsentry.bkashserver.ui.theme.BkashServerTheme
 import com.socialsentry.bkashserver.data.local.PaymentDatabase
@@ -39,21 +38,15 @@ class MainActivity : ComponentActivity() {
                 val database = remember { PaymentDatabase.getDatabase(context) }
                 val payments by database.paymentDao().getAllPayments().collectAsState(initial = emptyList())
 
-                val permissionsToRequest = mutableListOf(
+                val permissionsToRequest = listOf(
                     Manifest.permission.RECEIVE_SMS,
                     Manifest.permission.READ_SMS
-                ).apply {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        add(Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                }
+                )
 
                 val launcher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestMultiplePermissions()
                 ) { permissions ->
-                    if (permissions.values.all { it }) {
-                        SmsForegroundService.startService(context)
-                    }
+                    // Permissions granted, background listener will work automatically
                 }
 
                 LaunchedEffect(Unit) {
@@ -61,8 +54,6 @@ class MainActivity : ComponentActivity() {
                         ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
                     }
                     if (allGranted) {
-                        SmsForegroundService.startService(context)
-
                         launch {
                             // Fix existing records that were recovered with wrong createdAt (= now)
                             // This runs once at startup and costs very little.

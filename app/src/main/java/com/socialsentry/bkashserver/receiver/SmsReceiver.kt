@@ -11,6 +11,12 @@ import com.socialsentry.bkashserver.data.local.PaymentDatabase
 import com.socialsentry.bkashserver.data.local.PaymentEntity
 import com.socialsentry.bkashserver.domain.parser.BkashSmsParser
 import kotlinx.coroutines.Dispatchers
+import androidx.work.Constraints
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.socialsentry.bkashserver.data.PaymentUploadWorker
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class SmsReceiver : BroadcastReceiver() {
@@ -67,6 +73,18 @@ class SmsReceiver : BroadcastReceiver() {
                             // Upload ONLY this specific new payment — not retry-all.
                             // This is what was causing CPU overload before.
                             PaymentUploader.uploadSinglePayment(context, paymentEntity)
+
+                            // Schedule a background sync for any pending payments just in case
+                            // or if the immediate upload failed.
+                            val constraints = Constraints.Builder()
+                                .setRequiredNetworkType(NetworkType.CONNECTED)
+                                .build()
+                            
+                            val uploadRequest = OneTimeWorkRequestBuilder<PaymentUploadWorker>()
+                                .setConstraints(constraints)
+                                .build()
+                                
+                            WorkManager.getInstance(context).enqueue(uploadRequest)
                         } else {
                             Log.d(TAG, "SMS from bKash sender but not a payment: $body")
                         }

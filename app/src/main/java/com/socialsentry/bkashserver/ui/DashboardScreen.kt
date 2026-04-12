@@ -18,7 +18,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.socialsentry.bkashserver.data.local.PaymentEntity
-import com.socialsentry.bkashserver.domain.ServiceTracker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -37,18 +36,12 @@ fun DashboardScreen(payments: List<PaymentEntity>) {
     val scope = rememberCoroutineScope()
 
     var showManualEntry by remember { mutableStateOf(false) }
-    var showLogsDialog by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("Today") }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("📱 bKash SMS Reader") },
-                actions = {
-                    IconButton(onClick = { showLogsDialog = true }) {
-                        Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = "View Logs")
-                    }
-                }
+                title = { Text("📱 bKash SMS Reader") }
             )
         },
         floatingActionButton = {
@@ -135,10 +128,6 @@ fun DashboardScreen(payments: List<PaymentEntity>) {
 
     if (showManualEntry) {
         ManualEntryDialog(onDismiss = { showManualEntry = false })
-    }
-
-    if (showLogsDialog) {
-        ServiceLogsDialog(onDismiss = { showLogsDialog = false })
     }
 }
 
@@ -310,62 +299,3 @@ fun ConfigWarning() {
 private fun getNowFormatted(): String {
     val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
     return sdf.format(java.util.Date())
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ServiceLogsDialog(onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    val logs = remember { ServiceTracker.getLogHistory(context) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("🕒 Service Uptime History") },
-        text = {
-            if (logs.isEmpty()) {
-                Text("No logs available.", color = Color.Gray)
-            } else {
-                androidx.compose.foundation.lazy.LazyColumn {
-                    items(logs.size) { index ->
-                        val log = logs[index]
-                        Card(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    text = "🟢 Started: ${log.startTime}",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                if (log.stopTime != null) {
-                                    Text(
-                                        text = "🔴 Stopped: ${log.stopTime}",
-                                        color = Color.Red,
-                                        fontSize = 14.sp
-                                    )
-                                    Text(
-                                        text = "Reason: ${log.reason}",
-                                        color = Color.DarkGray,
-                                        fontSize = 12.sp,
-                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
-                                    )
-                                } else {
-                                    Text(
-                                        text = "⚡ Currently Running",
-                                        color = Color(0xFF4CAF50),
-                                        fontSize = 14.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
-        }
-    )
-}
