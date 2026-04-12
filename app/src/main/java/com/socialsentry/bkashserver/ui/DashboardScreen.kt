@@ -299,3 +299,4 @@ fun ConfigWarning() {
 private fun getNowFormatted(): String {
     val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
     return sdf.format(java.util.Date())
+}
