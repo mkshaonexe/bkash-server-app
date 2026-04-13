@@ -27,12 +27,15 @@ class NotificationService : NotificationListenerService() {
 
         val packageName = sbn.packageName ?: "unknown"
         val extras = sbn.notification.extras
-        val title = extras.getString("android.title") ?: ""
+        val title = extras.getString("android.title") ?: extras.getString("android.title.big") ?: ""
         val text = extras.getCharSequence("android.text")?.toString() ?: ""
+        val bigText = extras.getCharSequence("android.bigText")?.toString() ?: ""
+        val subText = extras.getCharSequence("android.subText")?.toString() ?: ""
+        val fullText = "$title $text $bigText $subText"
 
         Log.d("NotificationService", "Posted from: $packageName, Title: $title, Text: $text")
 
-        val payment = BkashNotificationParser.parse(title = title, text = text)
+        val payment = BkashNotificationParser.parse(title = title, text = fullText)
         if (payment != null) {
             Log.d("NotificationService", "Parsed Push Notification Payment: Amount=${payment.amount}, Sender=${payment.senderNumber}")
             
