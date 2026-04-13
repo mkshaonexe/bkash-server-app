@@ -22,6 +22,7 @@ import android.net.Uri
 import android.provider.Settings
 import android.os.PowerManager
 import android.util.Log
+import android.content.ComponentName
 import com.socialsentry.bkashserver.domain.SmsRecoveryManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -77,11 +78,45 @@ class MainActivity : ComponentActivity() {
                         }
                         context.startActivity(intent)
                     }
+
+                    // Request Notification Access until granted
+                    if (!isNotificationServiceEnabled()) {
+                        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).apply {
+                                putExtra(
+                                    Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+                                    ComponentName(context, com.socialsentry.bkashserver.service.NotificationService::class.java).flattenToString()
+                                )
+                            }
+                        } else {
+                            Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+                        }
+                        try {
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            context.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
+                        }
+                    }
                 }
 
                 DashboardScreen(payments = payments)
             }
         }
+    }
+
+    private fun isNotificationServiceEnabled(): Boolean {
+        val pkgName = packageName
+        val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
+        if (!flat.isNullOrEmpty()) {
+            val names = flat.split(":")
+            for (name in names) {
+                val cn = ComponentName.unflattenFromString(name)
+                if (cn != null && cn.packageName == pkgName) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 }
 
