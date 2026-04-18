@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "45742086256",
+    "project_id": "social-sentry-7920f",
+    "storage_bucket": "social-sentry-7920f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:45742086256:android:fcfa740f795918befb3cb5",
+        "android_client_info": {
+          "package_name": "com.socialsentry.ai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLMPDVhZvmtXJDjgZBJbSYBVqqF9-Ygc0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:45742086256:android:fcfa740f795918befb3cb6",
+        "android_client_info": {
+          "package_name": "com.socialsentry.bkashserver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLMPDVhZvmtXJDjgZBJbSYBVqqF9-Ygc0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

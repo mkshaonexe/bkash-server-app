@@ -1,6 +1,9 @@
 package com.socialsentry.bkashserver
 
 import android.app.Application
+import android.util.Log
+import com.google.firebase.FirebaseApp
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,4 +20,21 @@ class BkashApplication : Application() {
      * Dispatchers.Default is used as default; callers switch to IO when needed.
      */
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    override fun onCreate() {
+        super.onCreate()
+        
+        // Initialize Firebase
+        FirebaseApp.initializeApp(this)
+        
+        // Subscribe to admin_alerts topic to receive manual payment requests
+        FirebaseMessaging.getInstance().subscribeToTopic("admin_alerts")
+            .addOnCompleteListener { task ->
+                var msg = "Subscribed to admin_alerts"
+                if (!task.isSuccessful) {
+                    msg = "Subscribe failed"
+                }
+                Log.d("BkashApplication", msg)
+            }
+    }
 }

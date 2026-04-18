@@ -11,8 +11,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.PendingActions
+import androidx.compose.material3.*
+import androidx.compose.ui.Modifier
 import com.socialsentry.bkashserver.ui.DashboardScreen
+import com.socialsentry.bkashserver.ui.ManualRequestsScreen
 import com.socialsentry.bkashserver.ui.theme.BkashServerTheme
 import com.socialsentry.bkashserver.data.local.PaymentDatabase
 import androidx.compose.runtime.remember
@@ -99,7 +108,34 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                DashboardScreen(payments = payments)
+                var currentTab by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+                
+                Scaffold(
+                    bottomBar = {
+                        NavigationBar {
+                            NavigationBarItem(
+                                icon = { Icon(Icons.Default.List, contentDescription = "SMS Log") },
+                                label = { Text("SMS Log") },
+                                selected = currentTab == 0,
+                                onClick = { currentTab = 0 }
+                            )
+                            NavigationBarItem(
+                                icon = { Icon(Icons.Default.PendingActions, contentDescription = "Pending Requests") },
+                                label = { Text("Pending") },
+                                selected = currentTab == 1,
+                                onClick = { currentTab = 1 }
+                            )
+                        }
+                    }
+                ) { innerPadding ->
+                    Box(modifier = Modifier.padding(innerPadding)) {
+                        if (currentTab == 0) {
+                            DashboardScreen(payments = payments)
+                        } else {
+                            ManualRequestsScreen()
+                        }
+                    }
+                }
             }
         }
     }
